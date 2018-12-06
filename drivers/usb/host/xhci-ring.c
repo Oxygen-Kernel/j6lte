@@ -369,7 +369,7 @@ static int xhci_abort_cmd_ring(struct xhci_hcd *xhci)
 	 * but the completion event in never sent. Use the cmd timeout timer to
 	 * handle those cases. Use twice the time to cover the bit polling retry
 	 */
-	mod_timer(&xhci->cmd_timer, jiffies + (2 * XHCI_CMD_DEFAULT_TIMEOUT));
+//	mod_timer(&xhci->cmd_timer, jiffies + (2 * XHCI_CMD_DEFAULT_TIMEOUT));
 	xhci_write_64(xhci, temp_64 | CMD_RING_ABORT,
 			&xhci->op_regs->cmd_ring);
 
@@ -393,7 +393,7 @@ static int xhci_abort_cmd_ring(struct xhci_hcd *xhci)
 		if (ret < 0) {
 			xhci_err(xhci, "Stopped the command ring failed, "
 				 "maybe the host is dead\n");
-			del_timer(&xhci->cmd_timer);
+//			del_timer(&xhci->cmd_timer);
 			xhci->xhc_state |= XHCI_STATE_DYING;
 			xhci_halt(xhci);
 			return -ESHUTDOWN;
