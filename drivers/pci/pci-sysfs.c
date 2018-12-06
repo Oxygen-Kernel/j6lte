@@ -547,9 +547,9 @@ static ssize_t driver_override_show(struct device *dev,
 {
 	struct pci_dev *pdev = to_pci_dev(dev);
 	ssize_t len;
-	
+
 	device_lock(dev);
-	len = sprintf(buf, "%s\n", pdev->driver_override);
+	len = snprintf(buf, PAGE_SIZE, "%s\n", pdev->driver_override);
 	device_unlock(dev);
 	return len;
 }
