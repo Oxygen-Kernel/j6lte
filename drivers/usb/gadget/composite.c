@@ -115,9 +115,7 @@ int config_ep_by_speed(struct usb_gadget *g,
 	struct usb_descriptor_header **d_spd; /* cursor for speed desc */
 
 	if (!g || !f || !_ep)
-		return -EIO;
-
-	cdev = get_gadget_data(g);	
+		return -EIO;	
 
 	/* select desired speed */
 	switch (g->speed) {
