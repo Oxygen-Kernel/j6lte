@@ -99,6 +99,8 @@ all.config
 arch/arm64/kernel/vdso/vdso-offsets.h
 arch/arm64/kernel/vdso/vdso.lds
 arch/arm64/kernel/vmlinux.lds
+crypto/asymmetric_keys/pkcs7-asn1.c
+crypto/asymmetric_keys/pkcs7-asn1.h
 crypto/asymmetric_keys/x509-asn1.c
 crypto/asymmetric_keys/x509-asn1.h
 crypto/asymmetric_keys/x509_rsakey-asn1.c
@@ -113,9 +115,11 @@ firmware/tsp_zinitix/zt7548_a6lte.fw.gen.S
 firmware/tsp_zinitix/zt7548_j6.fw
 firmware/tsp_zinitix/zt7548_j6.fw.gen.S
 kernel/config_data.h
+kernel/x509_certificate_list
 kernel/time/hz.bc
 kernel/time/timeconst.h
 lib/crc32table.h
+lib/oid_registry_data.c
 lib/gen_crc32table
 lib/oid_registry_data.c
 net/wireless/regdb.c
