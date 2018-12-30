@@ -264,7 +264,6 @@ ENDPROC(stext)
  * booted in EL1 or EL2 respectively.
  */
 ENTRY(el2_setup)
-	msr	SPsel, #1			// We want to use SP_EL{1,2}
 	mrs	x0, CurrentEL
 	cmp	x0, #CurrentEL_EL2
 	b.ne	1f
@@ -327,11 +326,6 @@ CPU_LE(	movk	x0, #0x30d0, lsl #16	)	// Clear EE and E0E on LE systems
 #ifdef CONFIG_COMPAT
 	msr	hstr_el2, xzr			// Disable CP15 traps to EL2
 #endif
-
-	/* EL2 debug */
-	mrs	x0, pmcr_el0			// Disable debug access traps
-	ubfx	x0, x0, #11, #5			// to EL2 and allow access to
-	msr	mdcr_el2, x0			// all PMU counters from EL1
 
 	/* Stage-2 translation */
 	msr	vttbr_el2, xzr
@@ -657,7 +651,15 @@ __switch_data:
 __mmap_switched:
 	adr	x3, __switch_data + 8
 
-	ldp	x6, x7, [x3], #16
+#ifdef CONFIG_TIMA_RKP
+	ldr	x6, =rkp_map_bitmap
+	add	x7, x6, 0x18000
+3:	cmp	x6, x7
+	b.hs	4f
+	str	xzr, [x6], #8			// Clear BSS
+	b	3b
+#endif
+4:	ldp	x6, x7, [x3], #16
 1:	cmp	x6, x7
 	b.hs	2f
 	str	xzr, [x6], #8			// Clear BSS

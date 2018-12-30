@@ -231,11 +231,9 @@ static int esp6_output(struct xfrm_state *x, struct sk_buff *skb)
 	esph->seq_no = htonl(XFRM_SKB_CB(skb)->seq.output.low);
 
 	sg_init_table(sg, nfrags);
-	err = skb_to_sgvec(skb, sg,
-			   esph->enc_data + crypto_aead_ivsize(aead) - skb->data,
-			   clen + alen);
-	if (unlikely(err < 0))
-		goto error;
+	skb_to_sgvec(skb, sg,
+		     esph->enc_data + crypto_aead_ivsize(aead) - skb->data,
+		     clen + alen);
 
 	if ((x->props.flags & XFRM_STATE_ESN)) {
 		sg_init_table(asg, 3);
@@ -383,9 +381,7 @@ static int esp6_input(struct xfrm_state *x, struct sk_buff *skb)
 	iv = esph->enc_data;
 
 	sg_init_table(sg, nfrags);
-	ret = skb_to_sgvec(skb, sg, sizeof(*esph) + crypto_aead_ivsize(aead), elen);
-	if (unlikely(ret < 0))
-		goto out;
+	skb_to_sgvec(skb, sg, sizeof(*esph) + crypto_aead_ivsize(aead), elen);
 
 	if ((x->props.flags & XFRM_STATE_ESN)) {
 		sg_init_table(asg, 3);
@@ -443,9 +439,10 @@ static int esp6_err(struct sk_buff *skb, struct inet6_skb_parm *opt,
 		return 0;
 
 	if (type == NDISC_REDIRECT)
-		ip6_redirect(skb, net, skb->dev->ifindex, 0);
+		ip6_redirect(skb, net, skb->dev->ifindex, 0,
+			sock_net_uid(net, NULL));
 	else
-		ip6_update_pmtu(skb, net, info, 0, 0);
+		ip6_update_pmtu(skb, net, info, 0, 0, sock_net_uid(net, NULL));
 	xfrm_state_put(x);
 
 	return 0;

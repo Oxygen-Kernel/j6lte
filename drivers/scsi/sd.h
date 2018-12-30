@@ -65,7 +65,7 @@ struct scsi_disk {
 	struct device	dev;
 	struct gendisk	*disk;
 	atomic_t	openers;
-	sector_t	capacity;	/* size in logical blocks */
+	sector_t	capacity;	/* size in 512-byte sectors */
 	u32		max_xfer_blocks;
 	u32		max_ws_blocks;
 	u32		max_unmap_blocks;
@@ -93,6 +93,14 @@ struct scsi_disk {
 	unsigned	lbpvpd : 1;
 	unsigned	ws10 : 1;
 	unsigned	ws16 : 1;
+#ifdef CONFIG_USB_STORAGE_DETECT
+	wait_queue_head_t	delay_wait;
+	struct completion	scanning_done;
+	struct task_struct	*th;
+	int		thread_remove;
+	int		async_end;
+	int		prv_media_present;
+#endif
 };
 #define to_scsi_disk(obj) container_of(obj,struct scsi_disk,dev)
 
@@ -143,11 +151,6 @@ static inline int scsi_medium_access_command(struct scsi_cmnd *scmd)
 	}
 
 	return 0;
-}
-
-static inline sector_t logical_to_sectors(struct scsi_device *sdev, sector_t blocks)
-{
-	return blocks << (ilog2(sdev->sector_size) - 9);
 }
 
 /*

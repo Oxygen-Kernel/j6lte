@@ -248,24 +248,24 @@ static void ni_writel(struct comedi_device *dev, uint32_t data, int reg)
 {
 	if (dev->mmio)
 		writel(data, dev->mmio + reg);
-	else
-		outl(data, dev->iobase + reg);
+
+	outl(data, dev->iobase + reg);
 }
 
 static void ni_writew(struct comedi_device *dev, uint16_t data, int reg)
 {
 	if (dev->mmio)
 		writew(data, dev->mmio + reg);
-	else
-		outw(data, dev->iobase + reg);
+
+	outw(data, dev->iobase + reg);
 }
 
 static void ni_writeb(struct comedi_device *dev, uint8_t data, int reg)
 {
 	if (dev->mmio)
 		writeb(data, dev->mmio + reg);
-	else
-		outb(data, dev->iobase + reg);
+
+	outb(data, dev->iobase + reg);
 }
 
 static uint32_t ni_readl(struct comedi_device *dev, int reg)
@@ -2105,7 +2105,7 @@ static int ni_ai_insn_read(struct comedi_device *dev,
 			   unsigned int *data)
 {
 	struct ni_private *devpriv = dev->private;
-	unsigned int mask = s->maxdata;
+	unsigned int mask = (s->maxdata + 1) >> 1;
 	int i, n;
 	unsigned signbits;
 	unsigned int d;
@@ -3015,15 +3015,7 @@ static int ni_ao_inttrig(struct comedi_device *dev,
 	int i;
 	static const int timeout = 1000;
 
-	/*
-	 * Require trig_num == cmd->start_arg when cmd->start_src == TRIG_INT.
-	 * For backwards compatibility, also allow trig_num == 0 when
-	 * cmd->start_src != TRIG_INT (i.e. when cmd->start_src == TRIG_EXT);
-	 * in that case, the internal trigger is being used as a pre-trigger
-	 * before the external trigger.
-	 */
-	if (!(trig_num == cmd->start_arg ||
-	      (trig_num == 0 && cmd->start_src != TRIG_INT)))
+	if (trig_num != cmd->start_arg)
 		return -EINVAL;
 
 	/* Null trig at beginning prevent ao start trigger from executing more than
@@ -5601,11 +5593,11 @@ static int ni_E_init(struct comedi_device *dev,
 	/* Digital I/O (PFI) subdevice */
 	s = &dev->subdevices[NI_PFI_DIO_SUBDEV];
 	s->type		= COMEDI_SUBD_DIO;
+	s->subdev_flags	= SDF_READABLE | SDF_WRITABLE | SDF_INTERNAL;
 	s->maxdata	= 1;
 	if (devpriv->is_m_series) {
 		s->n_chan	= 16;
 		s->insn_bits	= ni_pfi_insn_bits;
-		s->subdev_flags	= SDF_READABLE | SDF_WRITABLE | SDF_INTERNAL;
 
 		ni_writew(dev, s->state, M_Offset_PFI_DO);
 		for (i = 0; i < NUM_PFI_OUTPUT_SELECT_REGS; ++i) {
@@ -5614,7 +5606,6 @@ static int ni_E_init(struct comedi_device *dev,
 		}
 	} else {
 		s->n_chan	= 10;
-		s->subdev_flags	= SDF_INTERNAL;
 	}
 	s->insn_config	= ni_pfi_insn_config;
 
@@ -5683,7 +5674,7 @@ static int ni_E_init(struct comedi_device *dev,
 		s->maxdata	= (devpriv->is_m_series) ? 0xffffffff
 							 : 0x00ffffff;
 		s->insn_read	= ni_tio_insn_read;
-		s->insn_write	= ni_tio_insn_write;
+		s->insn_write	= ni_tio_insn_read;
 		s->insn_config	= ni_tio_insn_config;
 #ifdef PCIDMA
 		if (dev->irq && devpriv->mite) {

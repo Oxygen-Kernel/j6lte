@@ -111,8 +111,10 @@ static struct snd_seq_queue *queue_new(int owner, int locked)
 	struct snd_seq_queue *q;
 
 	q = kzalloc(sizeof(*q), GFP_KERNEL);
-	if (!q)
+	if (q == NULL) {
+		pr_debug("ALSA: seq: malloc failed for snd_seq_queue_new()\n");
 		return NULL;
+	}
 
 	spin_lock_init(&q->owner_lock);
 	spin_lock_init(&q->check_lock);
@@ -271,20 +273,30 @@ void snd_seq_check_queue(struct snd_seq_queue *q, int atomic, int hop)
 
       __again:
 	/* Process tick queue... */
-	for (;;) {
-		cell = snd_seq_prioq_cell_out(q->tickq,
-					      &q->timer->tick.cur_tick);
-		if (!cell)
+	while ((cell = snd_seq_prioq_cell_peek(q->tickq)) != NULL) {
+		if (snd_seq_compare_tick_time(&q->timer->tick.cur_tick,
+					      &cell->event.time.tick)) {
+			cell = snd_seq_prioq_cell_out(q->tickq);
+			if (cell)
+				snd_seq_dispatch_event(cell, atomic, hop);
+		} else {
+			/* event remains in the queue */
 			break;
-		snd_seq_dispatch_event(cell, atomic, hop);
+		}
 	}
 
+
 	/* Process time queue... */
-	for (;;) {
-		cell = snd_seq_prioq_cell_out(q->timeq, &q->timer->cur_time);
-		if (!cell)
+	while ((cell = snd_seq_prioq_cell_peek(q->timeq)) != NULL) {
+		if (snd_seq_compare_real_time(&q->timer->cur_time,
+					      &cell->event.time.time)) {
+			cell = snd_seq_prioq_cell_out(q->timeq);
+			if (cell)
+				snd_seq_dispatch_event(cell, atomic, hop);
+		} else {
+			/* event remains in the queue */
 			break;
-		snd_seq_dispatch_event(cell, atomic, hop);
+		}
 	}
 
 	/* free lock */

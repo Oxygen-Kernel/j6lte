@@ -123,7 +123,6 @@ config I2C_I801
 	    Wildcat Point-LP (PCH)
 	    BayTrail (SOC)
 	    Sunrise Point-H (PCH)
-	    Sunrise Point-LP (PCH)
 
 	  This driver can also be built as a module.  If so, the module
 	  will be called i2c-i801.
@@ -724,6 +723,13 @@ config I2C_S3C2410
 	help
 	  Say Y here to include support for I2C controller in the
 	  Samsung SoCs.
+
+config FIX_I2C_BUS_NUM
+	bool "Fix I2C bus number"
+	depends on I2C_S3C2410
+	default n
+	help
+	   This will fix I2C bus number.
 
 config I2C_SH7760
 	tristate "Renesas SH7760 I2C Controller"

@@ -782,6 +782,7 @@ void rfkill_pause_polling(struct rfkill *rfkill)
 }
 EXPORT_SYMBOL(rfkill_pause_polling);
 
+#ifdef CONFIG_RFKILL_PM
 void rfkill_resume_polling(struct rfkill *rfkill)
 {
 	BUG_ON(!rfkill);
@@ -817,14 +818,17 @@ static int rfkill_resume(struct device *dev)
 
 	return 0;
 }
+#endif
 
 static struct class rfkill_class = {
 	.name		= "rfkill",
 	.dev_release	= rfkill_release,
 	.dev_groups	= rfkill_dev_groups,
 	.dev_uevent	= rfkill_dev_uevent,
+#ifdef CONFIG_RFKILL_PM
 	.suspend	= rfkill_suspend,
 	.resume		= rfkill_resume,
+#endif
 };
 
 bool rfkill_blocked(struct rfkill *rfkill)
@@ -1081,6 +1085,17 @@ static unsigned int rfkill_fop_poll(struct file *file, poll_table *wait)
 	return res;
 }
 
+static bool rfkill_readable(struct rfkill_data *data)
+{
+	bool r;
+
+	mutex_lock(&data->mtx);
+	r = !list_empty(&data->events);
+	mutex_unlock(&data->mtx);
+
+	return r;
+}
+
 static ssize_t rfkill_fop_read(struct file *file, char __user *buf,
 			       size_t count, loff_t *pos)
 {
@@ -1097,11 +1112,8 @@ static ssize_t rfkill_fop_read(struct file *file, char __user *buf,
 			goto out;
 		}
 		mutex_unlock(&data->mtx);
-		/* since we re-check and it just compares pointers,
-		 * using !list_empty() without locking isn't a problem
-		 */
 		ret = wait_event_interruptible(data->read_wait,
-					       !list_empty(&data->events));
+					       rfkill_readable(data));
 		mutex_lock(&data->mtx);
 
 		if (ret)

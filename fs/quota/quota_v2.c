@@ -117,16 +117,12 @@ static int v2_read_file_info(struct super_block *sb, int type)
 	qinfo = info->dqi_priv;
 	if (version == 0) {
 		/* limits are stored as unsigned 32-bit data */
-		info->dqi_max_spc_limit = 0xffffffffLL << QUOTABLOCK_BITS;
+		info->dqi_max_spc_limit = 0xffffffffULL << QUOTABLOCK_BITS;
 		info->dqi_max_ino_limit = 0xffffffff;
 	} else {
-		/*
-		 * Used space is stored as unsigned 64-bit value in bytes but
-		 * quota core supports only signed 64-bit values so use that
-		 * as a limit
-		 */
-		info->dqi_max_spc_limit = 0x7fffffffffffffffLL; /* 2^63-1 */
-		info->dqi_max_ino_limit = 0x7fffffffffffffffLL;
+		/* used space is stored as unsigned 64-bit value in bytes */
+		info->dqi_max_spc_limit = 0xffffffffffffffffULL; /* 2^64-1 */
+		info->dqi_max_ino_limit = 0xffffffffffffffffULL;
 	}
 	info->dqi_bgrace = le32_to_cpu(dinfo.dqi_bgrace);
 	info->dqi_igrace = le32_to_cpu(dinfo.dqi_igrace);
@@ -302,6 +298,11 @@ static int v2_free_file_info(struct super_block *sb, int type)
 	return 0;
 }
 
+static int v2_get_next_id(struct super_block *sb, struct kqid *qid)
+{
+	return qtree_get_next_id(sb_dqinfo(sb, qid->type)->dqi_priv, qid);
+}
+
 static const struct quota_format_ops v2_format_ops = {
 	.check_quota_file	= v2_check_quota_file,
 	.read_file_info		= v2_read_file_info,
@@ -310,6 +311,7 @@ static const struct quota_format_ops v2_format_ops = {
 	.read_dqblk		= v2_read_dquot,
 	.commit_dqblk		= v2_write_dquot,
 	.release_dqblk		= v2_release_dquot,
+	.get_next_id		= v2_get_next_id,
 };
 
 static struct quota_format_type v2r0_quota_format = {

@@ -47,7 +47,7 @@
 #define PSF_TX		0x1000
 #define EXT_EVENT	1
 #define CAL_EVENT	7
-#define CAL_TRIGGER	1
+#define CAL_TRIGGER	7
 #define DP83640_N_PINS	12
 
 #define MII_DP83640_MICR 0x11
@@ -495,9 +495,7 @@ static int ptp_dp83640_enable(struct ptp_clock_info *ptp,
 			else
 				evnt |= EVNT_RISE;
 		}
-		mutex_lock(&clock->extreg_lock);
 		ext_write(0, phydev, PAGE5, PTP_EVNT, evnt);
-		mutex_unlock(&clock->extreg_lock);
 		return 0;
 
 	case PTP_CLK_REQ_PEROUT:
@@ -533,8 +531,6 @@ static u8 status_frame_src[6] = { 0x08, 0x00, 0x17, 0x0B, 0x6B, 0x0F };
 
 static void enable_status_frames(struct phy_device *phydev, bool on)
 {
-	struct dp83640_private *dp83640 = phydev->priv;
-	struct dp83640_clock *clock = dp83640->clock;
 	u16 cfg0 = 0, ver;
 
 	if (on)
@@ -542,12 +538,8 @@ static void enable_status_frames(struct phy_device *phydev, bool on)
 
 	ver = (PSF_PTPVER & VERSIONPTP_MASK) << VERSIONPTP_SHIFT;
 
-	mutex_lock(&clock->extreg_lock);
-
 	ext_write(0, phydev, PAGE5, PSF_CFG0, cfg0);
 	ext_write(0, phydev, PAGE6, PSF_CFG1, ver);
-
-	mutex_unlock(&clock->extreg_lock);
 
 	if (!phydev->attached_dev) {
 		pr_warn("expected to find an attached netdevice\n");
@@ -845,7 +837,7 @@ static void decode_rxts(struct dp83640_private *dp83640,
 	list_del_init(&rxts->list);
 	phy2rxts(phy_rxts, rxts);
 
-	spin_lock(&dp83640->rx_queue.lock);
+	spin_lock_irqsave(&dp83640->rx_queue.lock, flags);
 	skb_queue_walk(&dp83640->rx_queue, skb) {
 		struct dp83640_skb_info *skb_info;
 
@@ -860,7 +852,7 @@ static void decode_rxts(struct dp83640_private *dp83640,
 			break;
 		}
 	}
-	spin_unlock(&dp83640->rx_queue.lock);
+	spin_unlock_irqrestore(&dp83640->rx_queue.lock, flags);
 
 	if (!shhwtstamps)
 		list_add_tail(&rxts->list, &dp83640->rxts);
@@ -1173,23 +1165,6 @@ static void dp83640_remove(struct phy_device *phydev)
 	kfree(dp83640);
 }
 
-static int dp83640_soft_reset(struct phy_device *phydev)
-{
-	int ret;
-
-	ret = genphy_soft_reset(phydev);
-	if (ret < 0)
-		return ret;
-
-	/* From DP83640 datasheet: "Software driver code must wait 3 us
-	 * following a software reset before allowing further serial MII
-	 * operations with the DP83640."
-	 */
-	udelay(10);		/* Taking udelay inaccuracy into account */
-
-	return 0;
-}
-
 static int dp83640_config_init(struct phy_device *phydev)
 {
 	struct dp83640_private *dp83640 = phydev->priv;
@@ -1197,18 +1172,11 @@ static int dp83640_config_init(struct phy_device *phydev)
 
 	if (clock->chosen && !list_empty(&clock->phylist))
 		recalibrate(clock);
-	else {
-		mutex_lock(&clock->extreg_lock);
+	else
 		enable_broadcast(phydev, clock->page, 1);
-		mutex_unlock(&clock->extreg_lock);
-	}
 
 	enable_status_frames(phydev, true);
-
-	mutex_lock(&clock->extreg_lock);
 	ext_write(0, phydev, PAGE4, PTP_CTL, PTP_ENABLE);
-	mutex_unlock(&clock->extreg_lock);
-
 	return 0;
 }
 
@@ -1487,7 +1455,6 @@ static struct phy_driver dp83640_driver = {
 	.flags		= PHY_HAS_INTERRUPT,
 	.probe		= dp83640_probe,
 	.remove		= dp83640_remove,
-	.soft_reset	= dp83640_soft_reset,
 	.config_init	= dp83640_config_init,
 	.config_aneg	= genphy_config_aneg,
 	.read_status	= genphy_read_status,

@@ -32,7 +32,8 @@ static DEFINE_MUTEX(regmap_debugfs_early_lock);
 /* Calculate the length of a fixed format  */
 static size_t regmap_calc_reg_len(int max_val, char *buf, size_t buf_size)
 {
-	return snprintf(NULL, 0, "%x", max_val);
+	snprintf(buf, buf_size, "%x", max_val);
+	return strlen(buf);
 }
 
 static ssize_t regmap_name_read_file(struct file *file,
@@ -431,7 +432,7 @@ static ssize_t regmap_access_read_file(struct file *file,
 		/* If we're in the region the user is trying to read */
 		if (p >= *ppos) {
 			/* ...but not beyond it */
-			if (buf_pos + tot_len + 1 >= count)
+			if (buf_pos >= count - 1 - tot_len)
 				break;
 
 			/* Format the register */
@@ -520,7 +521,7 @@ void regmap_debugfs_init(struct regmap *map, const char *name)
 		if (IS_ENABLED(REGMAP_ALLOW_WRITE_DEBUGFS))
 			registers_mode = 0600;
 		else
-			registers_mode = 0400;
+			registers_mode = 0404;
 
 		debugfs_create_file("registers", registers_mode, map->debugfs,
 				    map, &regmap_map_fops);
