@@ -39,6 +39,7 @@
 #include <linux/input/sec_tclm_v2.h>
 #include <linux/of_gpio.h>
 #include <linux/firmware.h>
+#include <linux/vmalloc.h>
 #ifdef CONFIG_BATTERY_SAMSUNG
 #include <linux/sec_batt.h>
 #endif
@@ -1636,7 +1637,7 @@ static u8 ts_upgrade_firmware(struct bt532_ts_info *info,
 	int fuzing_udelay = 8000;
 #endif
 
-	verify_data = kzalloc(size, GFP_KERNEL);
+	verify_data = vzalloc(size);
 	if (verify_data == NULL) {
 		zinitix_printk(KERN_ERR "cannot alloc verify buffer\n");
 		return false;
@@ -1911,8 +1912,8 @@ retry_upgrade:
 			goto fail_upgrade;
 
 		if (verify_data){
-			zinitix_printk("kfree\n");
-			kfree(verify_data);
+			zinitix_printk("vfree\n");
+			vfree(verify_data);
 			verify_data = NULL;
 		}
 
@@ -1928,8 +1929,8 @@ fail_upgrade:
 	}
 
 	if (verify_data){
-		zinitix_printk("kfree\n");
-		kfree(verify_data);
+		zinitix_printk("vfree\n");
+		vfree(verify_data);
 	}
 
 	input_info(true, &client->dev, "Failed to upgrade\n");
