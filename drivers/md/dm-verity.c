@@ -471,6 +471,13 @@ test_block_hash:
 			if (io->block != 0) {
 #ifdef SEC_HEX_DEBUG
 				u8 *page;
+				char hex_str[65] = {0, };
+
+				for (i = 0; i < v->salt_size; i++) {
+					sprintf(hex_str + (i * 2), "%02x", *(v->salt + i));
+				}
+				DMERR("dm-verity salt : %s", hex_str);
+
 				print_block_data(0, (unsigned char *)(result), 0, v->digest_size);
 				print_block_data(0, (unsigned char *)(io_want_digest(v, io)), 0, v->digest_size);
 				page = kmap_atomic(bv.bv_page);
@@ -480,7 +487,11 @@ test_block_hash:
 				v->hash_failed = 1;
 #if defined(CONFIG_TZ_ICCC)
 				printk(KERN_ERR "ICCC smc ret = %d \n",exynos_smc(SMC_CMD_DMV_WRITE_STATUS, 1, 0, 0));
+#else
+				/* For getting more info when a corruption is detected */
+				panic("dmv corrupt");
 #endif
+
 				return -EIO;
 			}
 		}

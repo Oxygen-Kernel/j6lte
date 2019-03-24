@@ -242,17 +242,26 @@ static void uart_copy_to_local_buf(int dir, struct uart_local_buf* local_buf,
 				"[%5lu.%06lu] ",
 				(unsigned long)time, rem_nsec / NSEC_PER_USEC);
 
-	if (dir == 1)
+	if (dir == 2) {
 		local_buf->index += scnprintf(local_buf->buffer + local_buf->index,
-					local_buf->size - local_buf->index, "[RX] ");
-	else
-		local_buf->index += scnprintf(local_buf->buffer + local_buf->index,
-					local_buf->size - local_buf->index, "[TX] ");
+                local_buf->size - local_buf->index, "[reg] ");
 
-	for (i = 0; i < len; i++) {
 		local_buf->index += scnprintf(local_buf->buffer + local_buf->index,
 					local_buf->size - local_buf->index,
+					"%s", trace_buf);
+	} else {
+		if (dir == 1) {
+			local_buf->index += scnprintf(local_buf->buffer + local_buf->index,
+					local_buf->size - local_buf->index, "[RX] ");
+		} else {
+			local_buf->index += scnprintf(local_buf->buffer + local_buf->index,
+					local_buf->size - local_buf->index, "[TX] ");
+		}
+		for (i = 0; i < len; i++) {
+			local_buf->index += scnprintf(local_buf->buffer + local_buf->index,
+					local_buf->size - local_buf->index,
 					"%02X ", trace_buf[i]);
+		}
 	}
 
 	local_buf->index += scnprintf(local_buf->buffer + local_buf->index,
@@ -562,6 +571,7 @@ s3c24xx_serial_rx_chars(int irq, void *dev_id)
  ignore_char:
 		continue;
 	}
+	wr_regl(port, S3C64XX_UINTP, S3C64XX_UINTM_RXD_MSK);
 
 	if (ourport->uart_logging && trace_cnt)
 		uart_copy_to_local_buf(1, &ourport->uart_local_buf, trace_buf, trace_cnt);
@@ -617,9 +627,9 @@ static irqreturn_t s3c24xx_serial_tx_chars(int irq, void *id)
 	}
 
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS) {
-		spin_unlock(&port->lock);
+		spin_unlock_irqrestore(&port->lock, flags);
 		uart_write_wakeup(port);
-		spin_lock(&port->lock);
+		spin_lock_irqsave(&port->lock, flags);
 	}
 
 	if (uart_circ_empty(xmit))
@@ -629,6 +639,7 @@ out:
 	if (ourport->uart_logging && trace_cnt)
 		uart_copy_to_local_buf(0, &ourport->uart_local_buf, trace_buf, trace_cnt);
 
+	wr_regl(port, S3C64XX_UINTP, S3C64XX_UINTM_TXD_MSK);
 	spin_unlock_irqrestore(&port->lock, flags);
 	return IRQ_HANDLED;
 }
@@ -658,7 +669,6 @@ static irqreturn_t s3c64xx_serial_handle_irq(int irq, void *id)
 {
 	struct s3c24xx_uart_port *ourport = id;
 	struct uart_port *port = &ourport->port;
-	unsigned int pend = rd_regl(port, S3C64XX_UINTP);
 	irqreturn_t ret = IRQ_HANDLED;
 
 #ifdef CONFIG_PM_DEVFREQ
@@ -668,25 +678,20 @@ static irqreturn_t s3c64xx_serial_handle_irq(int irq, void *id)
 						msecs_to_jiffies(100));
 #endif
 
-	if (pend & S3C64XX_UINTM_RXD_MSK) {
+	if (rd_regl(port, S3C64XX_UINTP) & S3C64XX_UINTM_RXD_MSK)
 		ret = s3c24xx_serial_rx_chars(irq, id);
-		wr_regl(port, S3C64XX_UINTP, S3C64XX_UINTM_RXD_MSK);
-	}
-	if (pend & S3C64XX_UINTM_TXD_MSK) {
+
+	if (rd_regl(port, S3C64XX_UINTP) & S3C64XX_UINTM_TXD_MSK)
 		ret = s3c24xx_serial_tx_chars(irq, id);
-		wr_regl(port, S3C64XX_UINTP, S3C64XX_UINTM_TXD_MSK);
-	}
 	return ret;
 }
 
 static unsigned int s3c24xx_serial_tx_empty(struct uart_port *port)
 {
 	struct s3c24xx_uart_info *info = s3c24xx_port_to_info(port);
-	unsigned long ufstat;
-	unsigned long ufcon;
+	unsigned long ufstat = rd_regl(port, S3C2410_UFSTAT);
+	unsigned long ufcon = rd_regl(port, S3C2410_UFCON);
 
-	ufstat = rd_regl(port, S3C2410_UFSTAT);
-	ufcon = rd_regl(port, S3C2410_UFCON);
 	if (ufcon & S3C2410_UFCON_FIFOMODE) {
 		if ((ufstat & info->tx_fifomask) != 0 ||
 		    (ufstat & info->tx_fifofull))
@@ -701,9 +706,7 @@ static unsigned int s3c24xx_serial_tx_empty(struct uart_port *port)
 /* no modem control lines */
 static unsigned int s3c24xx_serial_get_mctrl(struct uart_port *port)
 {
-	unsigned int umstat;
-
-	umstat = rd_regb(port, S3C2410_UMSTAT);
+	unsigned int umstat = rd_regb(port, S3C2410_UMSTAT);
 
 	if (umstat & S3C2410_UMSTAT_CTS)
 		return TIOCM_CAR | TIOCM_DSR | TIOCM_CTS;
@@ -1154,6 +1157,9 @@ static void s3c24xx_serial_set_termios(struct uart_port *port,
 	wr_regl(port, S3C2410_ULCON, ulcon);
 	wr_regl(port, S3C2410_UBRDIV, quot);
 
+	if (ourport->info->has_divslot)
+		wr_regl(port, S3C2443_DIVSLOT, udivslot);
+
 	umcon = rd_regl(port, S3C2410_UMCON);
 	if (termios->c_cflag & CRTSCTS) {
 		umcon |= S3C2410_UMCOM_AFC;
@@ -1163,9 +1169,6 @@ static void s3c24xx_serial_set_termios(struct uart_port *port,
 		umcon &= ~S3C2410_UMCOM_AFC;
 	}
 	wr_regl(port, S3C2410_UMCON, umcon);
-
-	if (ourport->info->has_divslot)
-		wr_regl(port, S3C2443_DIVSLOT, udivslot);
 
 	dbg("uart: ulcon = 0x%08x, ucon = 0x%08x, ufcon = 0x%08x\n",
 	    rd_regl(port, S3C2410_ULCON),
@@ -1461,7 +1464,8 @@ static void s3c24xx_serial_resetport(struct uart_port *port,
 		ucon |= S3C2443_UCON_LOOPBACK;
 	}
 
-	wr_regl(port, S3C2410_UCON,  ucon | cfg->ucon);
+	/* To prevent unexpected Interrupt before enabling the channel */
+	wr_regl(port, S3C64XX_UINTM, 0xf);
 
 	/* reset both fifos */
 	wr_regl(port, S3C2410_UFCON, cfg->ufcon | S3C2410_UFCON_RESETBOTH);
@@ -1469,6 +1473,7 @@ static void s3c24xx_serial_resetport(struct uart_port *port,
 
 	/* some delay is required after fifo reset */
 	udelay(1);
+	wr_regl(port, S3C2410_UCON,  ucon | cfg->ucon);
 }
 
 /* s3c24xx_serial_init_port
@@ -1788,6 +1793,7 @@ static int s3c24xx_serial_notifier(struct notifier_block *self,
 
 			spin_unlock_irqrestore(&port->lock, flags);
 		}
+		s3c24xx_serial_fifo_wait();
 		break;
 
 	default:
