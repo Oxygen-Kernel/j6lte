@@ -774,6 +774,7 @@ enum aa_scene_mode {
 	AA_SCENE_MODE_THERMAL,
 	AA_SCENE_MODE_VIDEO_COLLAGE,
 	AA_SCENE_MODE_PRO_MODE,
+	AA_SCENE_MODE_FACE_LOCK,
 };
 
 enum aa_effect_mode {

@@ -1221,7 +1221,7 @@ int fimc_is_sensor_peri_s_stream(struct fimc_is_device_sensor *device,
 		flush_kthread_work(&sensor_peri->mode_change_work);
 
 		/* stream on sequence */
-		if (cis->need_mode_change == false) {
+		if (cis->need_mode_change == false && cis->use_initial_ae == false) {
 			/* only first time after camera on */
 			fimc_is_sensor_initial_setting_low_exposure(sensor_peri);
 			cis->need_mode_change = true;
